@@ -133,6 +133,7 @@
     "browser": "Browser",
     "notifications": "Notifications",
     "plugins": "Plugins",
+    "admin": "Administration",
     "about": "About"
   },
   "notifications": {

@@ -15,12 +15,16 @@ type UserRow = {
   created_at: string;
   last_login: string | null;
   is_active: number;
+  approval_status: 'pending' | 'approved' | 'rejected';
   git_name: string | null;
   git_email: string | null;
   has_completed_onboarding: number;
 };
 
-type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'created_at' | 'last_login'>;
+type UserPublicRow = Pick<
+  UserRow,
+  'id' | 'username' | 'created_at' | 'last_login' | 'approval_status'
+>;
 
 type UserGitConfig = {
   git_name: string | null;
@@ -47,13 +51,19 @@ export const userDb = {
   },
 
   /** Inserts a new user and returns the created ID + username. */
-  createUser(username: string, passwordHash: string): CreateUserResult {
-    const db = getConnection();
-    const result = db
-      .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
-      .run(username, passwordHash);
-    return { id: result.lastInsertRowid, username };
-  },
+  createUser(
+  username: string,
+  passwordHash: string,
+  approvalStatus: 'pending' | 'approved'
+): CreateUserResult {
+  const db = getConnection();
+  const result = db
+    .prepare(
+      'INSERT INTO users (username, password_hash, approval_status) VALUES (?, ?, ?)'
+    )
+    .run(username, passwordHash, approvalStatus);
+  return { id: result.lastInsertRowid, username };
+},
 
   /**
    * Looks up an active user by username.
@@ -84,7 +94,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE id = ? AND is_active = 1'
+        'SELECT id, username, created_at, last_login, approval_status FROM users WHERE id = ? AND is_active = 1 AND approval_status = \'approved\''
       )
       .get(userId) as UserPublicRow | undefined;
   },
@@ -94,9 +104,30 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE is_active = 1 LIMIT 1'
+        'SELECT id, username, created_at, last_login, approval_status FROM users WHERE is_active = 1 LIMIT 1'
       )
       .get() as UserPublicRow | undefined;
+  },
+
+  /** Returns all users for administrator management. */
+  getAllUsers(): UserPublicRow[] {
+    const db = getConnection();
+    return db
+      .prepare(
+        'SELECT id, username, created_at, last_login, approval_status FROM users ORDER BY id ASC'
+      )
+      .all() as UserPublicRow[];
+  },
+
+  /** Updates a user's approval status. */
+  updateApprovalStatus(
+    userId: number,
+    approvalStatus: 'pending' | 'approved' | 'rejected'
+  ): void {
+    const db = getConnection();
+    db.prepare(
+      'UPDATE users SET approval_status = ? WHERE id = ?'
+    ).run(approvalStatus, userId);
   },
 
   /** Stores the user's preferred git name and email. */

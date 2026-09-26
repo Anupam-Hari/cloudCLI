@@ -172,6 +172,13 @@ export const api = {
     }),
     refresh: () => post('/api/auth/refresh'),
     user: () => get('/api/auth/user'),
+
+    adminUsers: () => get('/api/auth/admin/users'),
+    updateUserApproval: (
+      userId: number,
+      approvalStatus: 'pending' | 'approved' | 'rejected',
+    ) =>
+      patch(`/api/auth/admin/users/${userId}/approval`, { approvalStatus }),
   },
 
   // Protected endpoints

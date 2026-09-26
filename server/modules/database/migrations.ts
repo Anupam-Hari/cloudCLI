@@ -491,6 +491,9 @@ export const runMigrations = (db: Database) => {
       'BOOLEAN DEFAULT 0'
     );
 
+    addColumnToTableIfNotExists(db, 'users', userColumnNames, 'approval_status', "TEXT DEFAULT 'pending'");
+    db.exec("UPDATE users SET approval_status = 'approved' WHERE approval_status IS NULL");
+
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
     db.exec(USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL);
     db.exec(VAPID_KEYS_TABLE_SCHEMA_SQL);

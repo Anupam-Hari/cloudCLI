@@ -3,16 +3,33 @@ import { AppError } from '@/shared/utils.js';
 type AuthUser = {
   id: number | bigint;
   username: string;
+  approval_status?: 'pending' | 'approved' | 'rejected';
 };
 
 type AuthLoginUser = AuthUser & { password_hash: string };
 
 type AuthDependencies = {
+  adminUsername: string;
   users: {
     hasUsers(): boolean;
-    createUser(username: string, passwordHash: string): AuthUser;
+    createUser(
+      username: string,
+      passwordHash: string,
+      approvalStatus: 'pending' | 'approved'
+    ): AuthUser;
     getUserByUsername(username: string): AuthLoginUser | undefined;
     updateLastLogin(userId: number): void;
+    getAllUsers(): Array<{
+      id: number;
+      username: string;
+      created_at: string;
+      last_login: string | null;
+      approval_status: 'pending' | 'approved' | 'rejected';
+    }>;
+    updateApprovalStatus(
+      userId: number,
+      approvalStatus: 'pending' | 'approved' | 'rejected'
+    ): void;
   };
   transaction: {
     begin(): void;
@@ -41,6 +58,42 @@ function isUniqueConstraintError(error: unknown): boolean {
  */
 export function createAuthService(dependencies: AuthDependencies) {
   return {
+    isAdmin(user: unknown) {
+      return (
+        typeof user === 'object'
+        && user !== null
+        && 'username' in user
+        && typeof user.username === 'string'
+        && user.username === dependencies.adminUsername
+      );
+    },
+    requireAdmin(user: unknown) {
+      if (!this.isAdmin(user)) {
+        throw new AppError('Administrator access required', {
+          code: 'AUTH_ADMIN_REQUIRED',
+          statusCode: 403,
+        });
+      }
+    },
+    listUsers(user: unknown) {
+      this.requireAdmin(user);
+      return dependencies.users.getAllUsers();
+    },
+
+    updateUserApproval(
+      user: unknown,
+      userId: number,
+      approvalStatus: 'pending' | 'approved' | 'rejected'
+    ) {
+      this.requireAdmin(user);
+      dependencies.users.updateApprovalStatus(userId, approvalStatus);
+
+      return {
+        success: true,
+        userId,
+        approvalStatus,
+      };
+    },
     getStatus() {
       return {
         needsSetup: !dependencies.users.hasUsers(),
@@ -67,23 +120,29 @@ export function createAuthService(dependencies: AuthDependencies) {
 
       dependencies.transaction.begin();
       try {
-        if (dependencies.users.hasUsers()) {
-          throw new AppError('User already exists. This is a single-user system.', {
-            code: 'AUTH_USER_ALREADY_CONFIGURED',
-            statusCode: 403,
-          });
-        }
+        const isFirstUser = !dependencies.users.hasUsers();
 
         const passwordHash = await dependencies.hashPassword(password);
-        const user = dependencies.users.createUser(username, passwordHash);
-        const token = dependencies.generateToken(user);
+        const approvalStatus = isFirstUser ? 'approved' : 'pending';
+        const user = dependencies.users.createUser(username, passwordHash, approvalStatus);
         dependencies.transaction.commit();
+
+        if (!isFirstUser) {
+          return {
+            success: true,
+            user: { id: user.id, username: user.username },
+            approvalStatus: 'pending' as const,
+          };
+        }
+
+        const token = dependencies.generateToken(user);
         dependencies.users.updateLastLogin(numericUserId(user.id));
 
         return {
           success: true,
           user: { id: user.id, username: user.username },
           token,
+          approvalStatus: 'approved' as const,
         };
       } catch (error) {
         dependencies.transaction.rollback();
@@ -118,16 +177,37 @@ export function createAuthService(dependencies: AuthDependencies) {
         });
       }
 
+      if (user.approval_status === 'pending') {
+        throw new AppError('Your account is awaiting admin approval', {
+          code: 'AUTH_ACCOUNT_PENDING',
+          statusCode: 403,
+        });
+      }
+
+      if (user.approval_status === 'rejected') {
+        throw new AppError('Your account has been rejected by an administrator', {
+          code: 'AUTH_ACCOUNT_REJECTED',
+          statusCode: 403,
+        });
+      }
+
       dependencies.users.updateLastLogin(numericUserId(user.id));
       return {
         success: true,
-        user: { id: user.id, username: user.username },
+        user: {
+          id: user.id,
+          username: user.username,
+          isAdmin: this.isAdmin(user),
+        },
         token: dependencies.generateToken(user),
       };
     },
 
     getCurrentUser(user: unknown) {
-      return { user };
+      return {
+        user,
+        isAdmin: this.isAdmin(user),
+      };
     },
 
     refreshSession(user: unknown) {

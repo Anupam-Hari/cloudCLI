@@ -2,6 +2,7 @@ import express from 'express';
 import type { RequestHandler } from 'express';
 
 import type { createAuthService } from './auth.service.js';
+import { AppError } from '@/shared/utils.js';
 
 type AuthenticatedRequest = express.Request & { user?: unknown };
 
@@ -51,6 +52,53 @@ export function createAuthRouter(
 
   router.post('/logout', authenticateToken, (_req, res) => {
     res.json(service.logout());
+  });
+
+    router.get('/admin/users', authenticateToken, (req, res, next) => {
+    try {
+      res.json(
+        service.listUsers((req as AuthenticatedRequest).user)
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch('/admin/users/:userId/approval', authenticateToken, (req, res, next) => {
+    try {
+      const userId = Number(req.params.userId);
+      const body = req.body as {
+        approvalStatus?: unknown;
+      };
+
+      if (!Number.isInteger(userId) || userId <= 0) {
+        throw new AppError('Invalid user ID', {
+          code: 'AUTH_INVALID_USER_ID',
+          statusCode: 400,
+        });
+      }
+
+      if (
+        body.approvalStatus !== 'pending'
+        && body.approvalStatus !== 'approved'
+        && body.approvalStatus !== 'rejected'
+      ) {
+        throw new AppError('Invalid approval status', {
+          code: 'AUTH_INVALID_APPROVAL_STATUS',
+          statusCode: 400,
+        });
+      }
+
+      res.json(
+        service.updateUserApproval(
+          (req as AuthenticatedRequest).user,
+          userId,
+          body.approvalStatus
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;

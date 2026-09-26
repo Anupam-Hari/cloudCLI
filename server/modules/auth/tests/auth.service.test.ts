@@ -9,11 +9,19 @@ type AuthDependencies = Parameters<typeof createAuthService>[0];
 
 function createDependencies(overrides: Partial<AuthDependencies> = {}): AuthDependencies {
   return {
+    adminUsername: 'admin',
     users: {
       hasUsers: () => false,
-      createUser: (username, passwordHash) => ({ id: 1, username, password_hash: passwordHash }),
+      createUser: (username, passwordHash, approvalStatus) => ({
+        id: 1,
+        username,
+        password_hash: passwordHash,
+        approval_status: approvalStatus,
+      }),
       getUserByUsername: () => undefined,
       updateLastLogin: () => undefined,
+      getAllUsers: () => [],
+      updateApprovalStatus: () => undefined,
     },
     transaction: {
       begin: () => undefined,
@@ -41,29 +49,43 @@ test('register hashes credentials and commits through injected dependencies', as
     },
     users: {
       hasUsers: () => false,
-      createUser: (username, passwordHash) => {
-        operations.push(`create:${username}:${passwordHash}`);
-        return { id: 1, username, password_hash: passwordHash };
+      createUser: (username, passwordHash, approvalStatus) => {
+        operations.push(`create:${username}:${passwordHash}:${approvalStatus}`);
+        return {
+          id: 1,
+          username,
+          password_hash: passwordHash,
+          approval_status: approvalStatus,
+        };
       },
       getUserByUsername: () => undefined,
       updateLastLogin: (userId) => operations.push(`login:${userId}`),
+      getAllUsers: () => [],
+      updateApprovalStatus: () => undefined,
     },
   }));
 
   const result = await service.register('alice', 'secret12');
 
   assert.equal(result.token, 'signed-token');
-  assert.deepEqual(operations, ['begin', 'hash:secret12', 'create:alice:hash', 'commit', 'login:1']);
+  assert.deepEqual(operations, ['begin', 'hash:secret12', 'create:alice:hash:approved', 'commit', 'login:1']);
 });
 
 test('login rejects an invalid password without issuing a token', async () => {
   let tokenIssued = false;
   const service = createAuthService(createDependencies({
     users: {
-      hasUsers: () => true,
-      createUser: () => { throw new Error('unused'); },
-      getUserByUsername: () => ({ id: 1, username: 'alice', password_hash: 'hash' }),
+      hasUsers: () => false,
+      createUser: (username, passwordHash, approvalStatus) => ({
+        id: 1,
+        username,
+        password_hash: passwordHash,
+        approval_status: approvalStatus,
+      }),
+      getUserByUsername: () => undefined,
       updateLastLogin: () => undefined,
+      getAllUsers: () => [],
+      updateApprovalStatus: () => undefined,
     },
     comparePassword: async () => false,
     generateToken: () => {

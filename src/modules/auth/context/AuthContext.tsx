@@ -11,6 +11,7 @@ import { hydrateUserPreferences, resetUserPreferences } from '@/shared/userSetti
 type AuthUser = {
   id?: number | string;
   username: string;
+  isAdmin?: boolean;
   [key: string]: unknown;
 };
 
@@ -24,11 +25,12 @@ const AUTH_ERROR_MESSAGES = {
   sessionExpired: 'errors.sessionExpired',
 } as const;
 
-type AuthActionResult = { success: true } | { success: false; error: string };
+type AuthActionResult = { success: true, pending?: boolean; } | { success: false; error: string };
 
 type AuthSessionPayload = {
   token?: string;
   user?: AuthUser;
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
   error?: string;
   message?: string;
 };
@@ -39,6 +41,7 @@ type AuthStatusPayload = {
 
 type AuthUserPayload = {
   user?: AuthUser;
+  isAdmin?: boolean;
 };
 
 type OnboardingStatusPayload = {
@@ -46,7 +49,10 @@ type OnboardingStatusPayload = {
 };
 
 type ApiErrorPayload = {
-  error?: string;
+  error?: string | {
+    code?: string;
+    message?: string;
+  };
   message?: string;
 };
 
@@ -80,7 +86,19 @@ function resolveApiErrorMessage(payload: ApiErrorPayload | null, fallback: strin
     return fallback;
   }
 
-  return payload.error ?? payload.message ?? fallback;
+  if (typeof payload.error === 'string') {
+    return payload.error;
+  }
+
+  if (
+    payload.error
+    && typeof payload.error === 'object'
+    && typeof payload.error.message === 'string'
+  ) {
+    return payload.error.message;
+  }
+
+  return payload.message ?? fallback;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -236,7 +254,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      setUser(userPayload.user);
+      setUser({
+        ...userPayload.user,
+        isAdmin: userPayload.isAdmin,
+      });
       await checkOnboardingStatus();
     } catch (caughtError) {
       console.error('[Auth] Auth status check failed:', caughtError);
@@ -300,10 +321,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const response = await api.auth.login(username, password);
         const payload = await parseJsonSafely<AuthSessionPayload>(response);
 
-        if (!response.ok || !payload?.token || !payload.user) {
-          const message = resolveApiErrorMessage(payload, t(AUTH_ERROR_MESSAGES.loginFailed));
+        if (!response.ok || !payload?.user) {
+          const message = resolveApiErrorMessage(
+            payload,
+            t(AUTH_ERROR_MESSAGES.registrationFailed),
+          );
           setError(message);
           return { success: false, error: message };
+        }
+
+        if (!payload.token) {
+          return {
+            success: true,
+            pending: true,
+          };
         }
 
         setSession(payload.user, payload.token);
@@ -326,10 +357,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const response = await api.auth.register(username, password);
         const payload = await parseJsonSafely<AuthSessionPayload>(response);
 
-        if (!response.ok || !payload?.token || !payload.user) {
-          const message = resolveApiErrorMessage(payload, t(AUTH_ERROR_MESSAGES.registrationFailed));
+        if (!response.ok || !payload?.user) {
+          const message = resolveApiErrorMessage(
+            payload,
+            t(AUTH_ERROR_MESSAGES.registrationFailed)
+          );
           setError(message);
           return { success: false, error: message };
+        }
+
+        if (!payload.token) {
+          return {
+            success: true,
+            pending: true,
+          };
         }
 
         setSession(payload.user, payload.token);

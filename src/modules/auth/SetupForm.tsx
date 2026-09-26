@@ -52,12 +52,17 @@ function validateSetupForm(formState: SetupFormState, t: (key: string) => string
  * managers recognise this as a registration flow and offer to save the new
  * credentials after submission.
  */
-export default function SetupForm() {
+type SetupFormProps = {
+  onBackToLogin?: () => void;
+};
+
+export default function SetupForm({ onBackToLogin }: SetupFormProps) {
   const { t } = useTranslation('auth');
   const { register } = useAuth();
 
   const [formState, setFormState] = useState<SetupFormState>(initialState);
   const [errorMessage, setErrorMessage] = useState('');
+  const [pendingMessage, setPendingMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateField = useCallback((field: keyof SetupFormState, value: string) => {
@@ -68,6 +73,7 @@ export default function SetupForm() {
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setErrorMessage('');
+      setPendingMessage('');
 
       const validationError = validateSetupForm(formState, t);
       if (validationError) {
@@ -79,6 +85,8 @@ export default function SetupForm() {
       const result = await register(formState.username.trim(), formState.password);
       if (!result.success) {
         setErrorMessage(result.error);
+      } else if (result.pending) {
+        setPendingMessage('Your account has been created and is awaiting administrator approval.');
       }
       setIsSubmitting(false);
     },
@@ -137,6 +145,12 @@ export default function SetupForm() {
 
         <AuthErrorAlert errorMessage={errorMessage} />
 
+        {pendingMessage && (
+          <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+            {pendingMessage}
+          </p>
+        )}
+
         <button
           type="submit"
           disabled={isSubmitting}
@@ -152,6 +166,16 @@ export default function SetupForm() {
           )}
         </button>
       </form>
+      {onBackToLogin && (
+        <button
+          type="button"
+          onClick={onBackToLogin}
+          disabled={isSubmitting}
+          className="mt-3 w-full text-sm text-muted-foreground hover:text-foreground"
+        >
+          {t('login.title')}
+        </button>
+      )}
     </AuthScreenLayout>
   );
 }

@@ -7,6 +7,7 @@ import { useAuth } from '@/modules/auth/context/AuthContext';
 import AuthErrorAlert from '@/modules/auth/AuthErrorAlert';
 import AuthInputField from '@/modules/auth/AuthInputField';
 import AuthScreenLayout from '@/modules/auth/AuthScreenLayout';
+import SetupForm from '@/modules/auth/SetupForm';
 
 type LoginFormState = {
   username: string;
@@ -35,6 +36,7 @@ export default function LoginForm() {
   const updateField = useCallback((field: keyof LoginFormState, value: string) => {
     setFormState((previous) => ({ ...previous, [field]: value }));
   }, []);
+  const [showRegister, setShowRegister] = useState(false);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -56,6 +58,10 @@ export default function LoginForm() {
     },
     [formState.password, formState.username, login, t],
   );
+
+  if (showRegister) {
+    return <SetupForm onBackToLogin={() => setShowRegister(false)} />;
+  }
 
   return (
     <AuthScreenLayout
@@ -102,6 +108,14 @@ export default function LoginForm() {
           ) : (
             t('login.submit')
           )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowRegister(true)}
+          disabled={isSubmitting}
+          className="mt-3 w-full text-sm text-muted-foreground hover:text-foreground"
+        >
+          {t('register.title')}
         </button>
       </form>
     </AuthScreenLayout>
