@@ -1,4 +1,4 @@
-import { Edit3, ExternalLink, Globe, Lock, Plus, Server, Terminal, Trash2, Users, Zap } from 'lucide-react';
+import { Edit3, Globe, Lock, Plus, Server, Terminal, Trash2, Users, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { McpProject, McpProvider, McpScope, ProviderMcpServer } from '@/shared/types';
@@ -89,15 +89,6 @@ function TeamMcpFeatureCard() {
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             {t('mcpTeamCard.description')}
           </p>
-          <a
-            href="https://cloudcli.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"
-          >
-            {t('mcpTeamCard.proLink')}
-            <ExternalLink className="h-3 w-3" />
-          </a>
         </div>
       </div>
     </div>

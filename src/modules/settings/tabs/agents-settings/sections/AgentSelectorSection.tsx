@@ -9,7 +9,7 @@ type AgentSelectorSectionProps = {
 };
 
 const AGENT_NAMES: Record<AgentProvider, string> = {
-  claude: 'Claude',
+  claude: 'Code Assist',
   cursor: 'Cursor',
   codex: 'Codex',
   opencode: 'OpenCode',
