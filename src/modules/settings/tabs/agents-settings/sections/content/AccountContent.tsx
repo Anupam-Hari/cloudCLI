@@ -22,7 +22,7 @@ type AgentVisualConfig = {
 
 const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   claude: {
-    name: 'Claude',
+    name: 'CodeAssist',
     bgClass: 'bg-blue-50 dark:bg-blue-900/20',
     borderClass: 'border-blue-200 dark:border-blue-800',
     textClass: 'text-blue-900 dark:text-blue-100',

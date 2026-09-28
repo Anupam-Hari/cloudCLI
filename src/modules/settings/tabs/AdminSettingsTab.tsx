@@ -111,7 +111,7 @@ export default function AdminSettingsTab() {
 
       <SettingsSection
         title="User Management"
-        description="Review registered users and control access to CloudCLI."
+        description="Review registered users and control access to CodeAssist."
       >
         <SettingsCard>
           <div className="space-y-4">

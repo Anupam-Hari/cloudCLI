@@ -20,7 +20,7 @@ import type {
 } from '@/shared/types';
 
 const PROVIDERS: Array<{ id: LLMProvider; label: string }> = [
-  { id: 'claude', label: 'Claude' },
+  { id: 'claude', label: 'CodeAssist' },
   { id: 'codex', label: 'Codex' },
   { id: 'cursor', label: 'Cursor' },
   { id: 'opencode', label: 'OpenCode' },

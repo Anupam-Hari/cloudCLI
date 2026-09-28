@@ -380,7 +380,7 @@
     },
     "account": {
       "claude": {
-        "description": "Anthropic Claude AI assistant"
+        "description": "Fortinet CodeAssist AI assistant"
       },
       "cursor": {
         "description": "Cursor AI-powered code editor"
@@ -482,7 +482,7 @@
   "mcpServers": {
     "title": "MCP Servers",
     "description": {
-      "claude": "Model Context Protocol servers provide additional tools and data sources to Claude",
+      "claude": "Model Context Protocol servers provide additional tools and data sources to CodeAssist",
       "cursor": "Model Context Protocol servers provide additional tools and data sources to Cursor",
       "codex": "Model Context Protocol servers provide additional tools and data sources to Codex",
       "opencode": "Model Context Protocol servers provide additional tools and data sources to OpenCode"
