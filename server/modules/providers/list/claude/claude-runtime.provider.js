@@ -276,7 +276,15 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  sdkOptions.model = options.model || CLAUDE_PREDEFINED_MODELS.DEFAULT;
+  const selectedModel =
+    options.model === CLAUDE_PREDEFINED_MODELS.DEFAULT
+      ? process.env.ANTHROPIC_MODEL
+      : options.model;
+
+  sdkOptions.model =
+    selectedModel ||
+    process.env.ANTHROPIC_MODEL ||
+    CLAUDE_PREDEFINED_MODELS.DEFAULT;
 
   applyClaudeEffort(sdkOptions, resolveClaudeEffort(
     sdkOptions.model,
