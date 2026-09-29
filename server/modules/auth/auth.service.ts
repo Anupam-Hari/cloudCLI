@@ -9,7 +9,6 @@ type AuthUser = {
 type AuthLoginUser = AuthUser & { password_hash: string };
 
 type AuthDependencies = {
-  adminUsername: string;
   users: {
     hasUsers(): boolean;
     createUser(
@@ -30,6 +29,13 @@ type AuthDependencies = {
       userId: number,
       approvalStatus: 'pending' | 'approved' | 'rejected'
     ): void;
+    getAdminUser(): {
+      id: number;
+      username: string;
+      created_at: string;
+      last_login: string | null;
+      approval_status: 'pending' | 'approved' | 'rejected';
+    } | undefined;
   };
   transaction: {
     begin(): void;
@@ -58,14 +64,26 @@ function isUniqueConstraintError(error: unknown): boolean {
  */
 export function createAuthService(dependencies: AuthDependencies) {
   return {
+    /**
+     * Check if user is admin - now checks if user is the first user in the database
+     * which serves as the admin user
+     */
     isAdmin(user: unknown) {
-      return (
+      // Check if we have a valid user object with id
+      if (
         typeof user === 'object'
         && user !== null
-        && 'username' in user
-        && typeof user.username === 'string'
-        && user.username === dependencies.adminUsername
-      );
+        && 'id' in user
+        && (typeof user.id === 'number' || typeof user.id === 'bigint')
+      ) {
+        // Get the admin user (first user in the database)
+        const adminUser = dependencies.users.getAdminUser();
+        if (adminUser) {
+          return user.id === adminUser.id;
+        }
+      }
+
+      return false;
     },
     requireAdmin(user: unknown) {
       if (!this.isAdmin(user)) {

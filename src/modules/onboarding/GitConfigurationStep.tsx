@@ -34,7 +34,7 @@ export default function GitConfigurationStep({
         <div>
           <label htmlFor="gitName" className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
             <User className="h-4 w-4" />
-            {t('onboarding.gitNameLabel')} <span className="text-red-500">*</span>
+            {t('onboarding.gitNameLabel')}
           </label>
           <input
             type="text"
@@ -43,7 +43,6 @@ export default function GitConfigurationStep({
             onChange={(event) => onGitNameChange(event.target.value)}
             className="w-full rounded-xl border border-border bg-background/60 px-4 py-2.5 text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/60 hover:border-foreground/20 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder={t('onboarding.gitNamePlaceholder')}
-            required
             disabled={isSubmitting}
           />
           <p className="mt-1 text-xs text-muted-foreground">{t('onboarding.gitNameHint')}</p>
@@ -52,7 +51,7 @@ export default function GitConfigurationStep({
         <div>
           <label htmlFor="gitEmail" className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
             <Mail className="h-4 w-4" />
-            {t('onboarding.gitEmailLabel')} <span className="text-red-500">*</span>
+            {t('onboarding.gitEmailLabel')}
           </label>
           <input
             type="email"
@@ -61,11 +60,19 @@ export default function GitConfigurationStep({
             onChange={(event) => onGitEmailChange(event.target.value)}
             className="w-full rounded-xl border border-border bg-background/60 px-4 py-2.5 text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/60 hover:border-foreground/20 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
             placeholder={t('onboarding.gitEmailPlaceholder')}
-            required
             disabled={isSubmitting}
           />
           <p className="mt-1 text-xs text-muted-foreground">{t('onboarding.gitEmailHint')}</p>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border/70 bg-card/50 p-4 text-sm text-muted-foreground">
+        <p>
+          {t('onboarding.gitConfig.optionalNote')}
+        </p>
+        <p className="mt-2">
+          {t('onboarding.gitConfig.optionalNote2')}
+        </p>
       </div>
     </div>
   );

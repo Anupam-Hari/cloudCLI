@@ -63,6 +63,7 @@
   "actions": {
     "refresh": "Refresh",
     "settings": "Settings",
+    "logout": "Logout",
     "collapseAll": "Collapse All",
     "expandAll": "Expand All",
     "cancel": "Cancel",

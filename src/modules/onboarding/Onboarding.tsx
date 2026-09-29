@@ -97,31 +97,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       return;
     }
 
-    if (!gitName.trim() || !gitEmail.trim()) {
-      setErrorMessage(t('onboarding.errorNameEmailRequired'));
-      return;
-    }
-
-    if (!gitEmailPattern.test(gitEmail)) {
-      setErrorMessage(t('onboarding.errorInvalidEmail'));
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await api.user.updateGitConfig(gitName, gitEmail);
-
-      if (!response.ok) {
-        const message = await readErrorMessageFromResponse(response, t('onboarding.errorSaveGitConfig'));
-        throw new Error(message);
-      }
-
-      setCurrentStep((previous) => previous + 1);
-    } catch (caughtError) {
-      setErrorMessage(caughtError instanceof Error ? caughtError.message : t('onboarding.errorSaveGitConfig'));
-    } finally {
-      setIsSubmitting(false);
-    }
+    // For CodeAssist, we make Git configuration optional - just proceed to next step
+    setCurrentStep((previous) => previous + 1);
   };
 
   const handlePreviousStep = () => {
@@ -149,7 +126,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const isCurrentStepValid = currentStep === 0
-    ? Boolean(gitName.trim() && gitEmail.trim() && gitEmailPattern.test(gitEmail))
+    ? true // Git configuration is now optional
     : true;
 
   return (

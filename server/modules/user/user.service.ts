@@ -105,24 +105,16 @@ export function createUserService(dependencies: UserDependencies) {
     },
 
     async updateGitConfig(userId: number, gitNameInput: unknown, gitEmailInput: unknown) {
-      const gitName = typeof gitNameInput === 'string' ? gitNameInput.trim() : '';
-      const gitEmail = typeof gitEmailInput === 'string' ? gitEmailInput.trim() : '';
-      if (!gitName || !gitEmail) {
-        throw new AppError('Git name and email are required', {
-          code: 'GIT_CONFIG_REQUIRED',
-          statusCode: 400,
-        });
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gitEmail)) {
-        throw new AppError('Invalid email format', {
-          code: 'INVALID_GIT_EMAIL',
-          statusCode: 400,
-        });
-      }
+      const gitName = typeof gitNameInput === 'string' ? gitNameInput.trim() : null;
+      const gitEmail = typeof gitEmailInput === 'string' ? gitEmailInput.trim() : null;
 
+      // Make Git configuration optional
       dependencies.users.updateGitConfig(userId, gitName, gitEmail);
       try {
-        await dependencies.applyGlobalGitConfig(gitName, gitEmail);
+        if (gitName && gitEmail) {
+          // Only apply global config if both name and email are provided
+          await dependencies.applyGlobalGitConfig(gitName, gitEmail);
+        }
       } catch (error) {
         // Persisted user settings remain authoritative even if the host Git
         // installation cannot be updated (matching the previous behavior).

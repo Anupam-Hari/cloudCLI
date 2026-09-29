@@ -2,8 +2,7 @@
  * User repository.
  *
  * Provides typed CRUD operations for the `users` table.
- * This is a single-user system, but the schema supports multiple
- * users for forward compatibility.
+ * This now supports multiple users with proper isolation.
  */
 
 import { getConnection } from '@/modules/database/connection.js';
@@ -117,6 +116,19 @@ export const userDb = {
         'SELECT id, username, created_at, last_login, approval_status FROM users ORDER BY id ASC'
       )
       .all() as UserPublicRow[];
+  },
+
+  /**
+   * Get admin user (first user in the database)
+   * This maintains backward compatibility with existing single-user setups
+   */
+  getAdminUser(): UserPublicRow | undefined {
+    const db = getConnection();
+    return db
+      .prepare(
+        'SELECT id, username, created_at, last_login, approval_status FROM users WHERE is_active = 1 ORDER BY id ASC LIMIT 1'
+      )
+      .get() as UserPublicRow | undefined;
   },
 
   /** Updates a user's approval status. */

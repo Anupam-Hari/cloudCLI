@@ -1,8 +1,8 @@
 {
   "name": "@cloudcli-ai/cloudcli",
   "version": "1.37.3",
-  "productName": "CloudCLI",
-  "description": "A web-based UI for Claude Code CLI",
+  "productName": "CodeAssist",
+  "description": "A web-based UI for CodeAssist",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {

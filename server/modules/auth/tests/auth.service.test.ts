@@ -9,7 +9,6 @@ type AuthDependencies = Parameters<typeof createAuthService>[0];
 
 function createDependencies(overrides: Partial<AuthDependencies> = {}): AuthDependencies {
   return {
-    adminUsername: 'admin',
     users: {
       hasUsers: () => false,
       createUser: (username, passwordHash, approvalStatus) => ({
@@ -22,6 +21,7 @@ function createDependencies(overrides: Partial<AuthDependencies> = {}): AuthDepe
       updateLastLogin: () => undefined,
       getAllUsers: () => [],
       updateApprovalStatus: () => undefined,
+      getAdminUser: () => undefined,
     },
     transaction: {
       begin: () => undefined,
@@ -62,6 +62,7 @@ test('register hashes credentials and commits through injected dependencies', as
       updateLastLogin: (userId) => operations.push(`login:${userId}`),
       getAllUsers: () => [],
       updateApprovalStatus: () => undefined,
+      getAdminUser: () => undefined,
     },
   }));
 
@@ -86,6 +87,7 @@ test('login rejects an invalid password without issuing a token', async () => {
       updateLastLogin: () => undefined,
       getAllUsers: () => [],
       updateApprovalStatus: () => undefined,
+      getAdminUser: () => undefined,
     },
     comparePassword: async () => false,
     generateToken: () => {

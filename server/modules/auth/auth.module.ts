@@ -18,7 +18,6 @@ const bcrypt = require('bcrypt') as BcryptAdapter;
 const databaseConnection = getConnection();
 
 const authService = createAuthService({
-  adminUsername: process.env.CLOUDCLI_ADMIN_USERNAME ?? '',
   users: {
     hasUsers: () => userDb.hasUsers(),
     createUser: (username, passwordHash, approvalStatus) => userDb.createUser(username, passwordHash, approvalStatus),
@@ -27,6 +26,7 @@ const authService = createAuthService({
     getAllUsers: () => userDb.getAllUsers(),
     updateApprovalStatus: (userId, approvalStatus) =>
       userDb.updateApprovalStatus(userId, approvalStatus),
+    getAdminUser: () => userDb.getAdminUser(),
   },
   transaction: {
     begin: () => databaseConnection.prepare('BEGIN').run(),
