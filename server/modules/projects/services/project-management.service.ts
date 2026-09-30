@@ -90,6 +90,7 @@ export async function createProject(
   input: CreateProjectInput,
   dependencies: CreateProjectDependencies = defaultDependencies,
   userId?: number,
+  bypassWorkspace = false,
 ): Promise<CreateProjectServiceResult> {
   const normalizedPath = normalizeProjectPath(input.projectPath || '');
   if (!normalizedPath) {
@@ -109,14 +110,11 @@ export async function createProject(
     });
   }
 
-  // If user ID is provided, resolve to user workspace path
+  // Admin bypass skips workspace provisioning but still keeps the real user ID
+  // for project ownership/database persistence.
   let resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
-  if (userId !== undefined && userId !== null) {
-    // Get user workspace path
+  if (!bypassWorkspace && userId !== undefined) {
     resolvedProjectPath = await ensureUserWorkspaceExists(userId, normalizedPath);
-  } else {
-    // For backward compatibility, use the source path directly
-    resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
   }
 
   // Ensure workspace directory exists

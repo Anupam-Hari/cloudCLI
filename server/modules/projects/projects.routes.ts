@@ -10,6 +10,7 @@ import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWit
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { authenticateToken } from '@/modules/auth/auth.middleware.js';
+import { userDb } from '@/modules/database/index.js';
 
 /**
  * How long a posted clone request waits for its progress stream to be opened.
@@ -106,6 +107,7 @@ router.post(
     const requestBody = req.body as Record<string, unknown>;
     const projectPath = typeof requestBody.path === 'string' ? requestBody.path : '';
     const customName = typeof requestBody.customName === 'string' ? requestBody.customName : null;
+    const authenticatedUser = (req as any).user;
 
     if (requestBody.workspaceType !== undefined) {
       throw new AppError('workspaceType is no longer supported. Use the single create-project flow.', {
@@ -122,10 +124,31 @@ router.post(
       });
     }
 
+    // Check if user is admin - if so, bypass user workspace isolation
+    const isAdmin = authenticatedUser &&
+      typeof authenticatedUser === 'object' &&
+      authenticatedUser !== null &&
+      'id' in authenticatedUser &&
+      // Check if this user is the first user in the database (admin)
+      // This mimics the logic in auth.service.ts
+      (() => {
+        try {
+          const firstUser = userDb.getFirstUser();
+          return firstUser && firstUser.id === authenticatedUser.id;
+        } catch {
+          return false;
+        }
+      })();
+
+    // For admin users, we want to bypass workspace provisioning by passing null as userId
+    // This way, the createProject function will not call ensureUserWorkspaceExists and will
+    // use the source path directly
+    const userId = authenticatedUser?.id;
+
     const projectCreationResult = await createProject({
       projectPath,
       customName,
-    }, undefined, (req as any).user?.id);
+    }, undefined, userId, Boolean(isAdmin));
 
     res.json({
       success: true,

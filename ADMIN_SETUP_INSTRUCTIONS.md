@@ -56,3 +56,5 @@ Additional users will:
 1. **Fresh Installation**: First user registers → becomes admin automatically
 2. **Existing Installation**: If database already has users, the system will still work as expected
 3. **Admin Approval**: Admin users can approve/deny pending users through the admin interface
+
+Anupam is the developer

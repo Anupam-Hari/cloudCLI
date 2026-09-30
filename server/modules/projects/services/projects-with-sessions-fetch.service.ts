@@ -1,11 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionsDb, userDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
+import { ensureUserWorkspaceExists } from '@/modules/projects/services/user-workspace.service.js';
 
 type SessionSummary = {
   id: string;
@@ -176,6 +177,56 @@ function broadcastProgress(progress: ProgressUpdate) {
 }
 
 /**
+ * Check if a user is an admin (first user in the database)
+ */
+function isAdminUser(userId: number | null | undefined): boolean {
+  if (userId === null || userId === undefined) {
+    return false;
+  }
+
+  try {
+    const firstUser = userDb.getFirstUser();
+    return firstUser !== undefined && firstUser !== null && firstUser.id === userId;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolves project path for a user, applying admin bypass logic when appropriate
+ */
+async function resolveProjectPathForUser(
+  projectPath: string,
+  userId: number | null | undefined
+): Promise<string> {
+  // If user is null or undefined, it means admin bypass was requested
+  if (userId === null) {
+    return projectPath;
+  }
+
+  // If user is an admin, bypass workspace isolation
+  if (isAdminUser(userId)) {
+    return projectPath;
+  }
+
+  // For regular users, resolve to user workspace path if needed
+  if (userId !== undefined) {
+    try {
+      // This ensures workspace exists for regular users
+      const resolvedPath = await ensureUserWorkspaceExists(userId, projectPath);
+      return resolvedPath;
+    } catch (error) {
+      // If workspace creation fails, fall back to original path
+      console.warn(`Failed to ensure user workspace for user ${userId} and path ${projectPath}:`, error);
+      return projectPath;
+    }
+  }
+
+  // For backward compatibility, return original path
+  return projectPath;
+}
+
+/**
  * Reads all projects from DB and returns normalized session summaries.
  */
 export async function getProjectsWithSessions(
@@ -208,6 +259,9 @@ export async function getProjectsWithSessions(
       currentProject: projectPath,
     });
 
+    // Apply admin bypass logic when resolving project path for display
+    const resolvedProjectPath = await resolveProjectPathForUser(projectPath, options.userId);
+
     const displayName =
       row.custom_project_name && row.custom_project_name.trim().length > 0
         ? row.custom_project_name
@@ -220,9 +274,9 @@ export async function getProjectsWithSessions(
 
     projects.push({
       projectId,
-      path: projectPath,
+      path: resolvedProjectPath,
       displayName,
-      fullPath: projectPath,
+      fullPath: resolvedProjectPath,
       isStarred: Boolean(row.isStarred),
       sessions: sessionsPage.sessions,
       sessionMeta: {
@@ -263,18 +317,23 @@ export async function getArchivedProjectsWithSessions(
   const archivedProjects: ArchivedProjectListItem[] = [];
 
   for (const row of projectRows) {
+    const projectPath = row.project_path;
+
+    // Apply admin bypass logic when resolving project path for display
+    const resolvedProjectPath = await resolveProjectPathForUser(projectPath, options.userId);
+
     const displayName =
       row.custom_project_name && row.custom_project_name.trim().length > 0
         ? row.custom_project_name
-        : await generateDisplayName(path.basename(row.project_path) || row.project_path, row.project_path);
+        : await generateDisplayName(path.basename(projectPath) || projectPath, projectPath);
 
-    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path);
+    const sessionsPage = readProjectSessionsIncludingArchived(projectPath);
 
     archivedProjects.push({
       projectId: row.project_id,
-      path: row.project_path,
+      path: resolvedProjectPath,
       displayName,
-      fullPath: row.project_path,
+      fullPath: resolvedProjectPath,
       isStarred: Boolean(row.isStarred),
       isArchived: true,
       sessions: sessionsPage.sessions,
