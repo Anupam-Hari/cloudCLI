@@ -78,81 +78,23 @@ async function provisionUserWorkspace(userId: number, sourcePath: string, userWo
   const parentDir = path.dirname(userWorkspacePath);
   await fs.mkdir(parentDir, { recursive: true });
 
-  // Check if source is a Git repository
-  const isGitRepo = await isGitRepository(sourcePath);
-
-  if (isGitRepo) {
-    // For Git repositories, use git clone to preserve history and remotes
-    await cloneGitRepository(sourcePath, userWorkspacePath);
-  } else {
-    // For non-Git repositories, use filesystem copy
-    await copyFileSystemRepository(sourcePath, userWorkspacePath);
-  }
+  // Always use filesystem copy - no Git operations
+  await copyFileSystemRepository(sourcePath, userWorkspacePath);
 
   return userWorkspacePath;
 }
 
 /**
- * Checks if a path is a Git repository.
- *
- * @param repoPath - The repository path to check
- * @returns True if it's a Git repository
- */
-async function isGitRepository(repoPath: string): Promise<boolean> {
-  try {
-    const gitDirPath = path.join(repoPath, '.git');
-    await fs.access(gitDirPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Clone a Git repository to the user workspace.
- *
- * @param sourcePath - The source Git repository path
- * @param targetPath - The target user workspace path
- */
-async function cloneGitRepository(sourcePath: string, targetPath: string): Promise<void> {
-  // Import spawn from cross-spawn to avoid issues with Windows
-  const spawn = (await import('cross-spawn')).default;
-
-  return new Promise((resolve, reject) => {
-    const gitProcess = spawn('git', ['clone', '--no-hardlinks', sourcePath, targetPath]);
-
-    gitProcess.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new AppError(`Git clone failed with code ${code}`, {
-          code: 'GIT_CLONE_FAILED',
-          statusCode: 500,
-        }));
-      }
-    });
-
-    gitProcess.on('error', (error) => {
-      reject(new AppError(`Git clone error: ${error.message}`, {
-        code: 'GIT_CLONE_ERROR',
-        statusCode: 500,
-      }));
-    });
-  });
-}
-
-/**
- * Copy a non-Git repository to the user workspace.
+ * Copy a repository to the user workspace using filesystem copy.
  *
  * @param sourcePath - The source repository path
  * @param targetPath - The target user workspace path
  */
 async function copyFileSystemRepository(sourcePath: string, targetPath: string): Promise<void> {
-  // Import fs-extra for robust file copying
-  const fsExtra = await import('fs-extra');
-
   try {
-    await fsExtra.copy(sourcePath, targetPath);
+    // Use Node.js built-in fs.cp for copying directories recursively
+    // This is the modern approach for directory copying in Node.js
+    await fs.cp(sourcePath, targetPath, { recursive: true });
   } catch (error) {
     throw new AppError(`File system copy failed: ${error}`, {
       code: 'FILE_COPY_FAILED',
