@@ -8,6 +8,7 @@ import { providerTokenUsageService } from '@/modules/providers/services/provider
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { authenticateToken } from '@/modules/auth/auth.middleware.js';
 import type {
   CustomProviderModelInput,
   LLMProvider,
@@ -755,12 +756,14 @@ router.get(
  */
 router.post(
   '/sessions',
+  authenticateToken,
   asyncHandler(async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const provider = parseProvider(body.provider);
     const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
     const initialMessage = typeof body.initialMessage === 'string' ? body.initialMessage : '';
-    const result = sessionsService.createAppSession(provider, projectPath, initialMessage);
+    const user = (req as any).user;
+    const result = sessionsService.createAppSession(provider, projectPath, initialMessage, user?.id);
     res.status(201).json(createApiSuccessResponse(result));
   }),
 );

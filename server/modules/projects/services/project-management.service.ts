@@ -17,7 +17,7 @@ type CreateProjectInput = {
 type CreateProjectDependencies = {
   validatePath: (projectPath: string) => Promise<WorkspacePathValidationResult>;
   ensureWorkspaceDirectory: (projectPath: string) => Promise<void>;
-  persistProjectPath: (projectPath: string, customName: string | null) => CreateProjectPathResult;
+  persistProjectPath: (projectPath: string, customName: string | null, userId?: number) => CreateProjectPathResult;
   getProjectByPath: (projectPath: string) => ProjectRepositoryRow | null;
 };
 
@@ -53,8 +53,8 @@ const defaultDependencies: CreateProjectDependencies = {
       });
     }
   },
-  persistProjectPath: (projectPath: string, customName: string | null): CreateProjectPathResult =>
-    projectsDb.createProjectPath(projectPath, customName),
+  persistProjectPath: (projectPath: string, customName: string | null, userId?: number): CreateProjectPathResult =>
+    projectsDb.createProjectPath(projectPath, customName, userId),
   getProjectByPath: (projectPath: string): ProjectRepositoryRow | null =>
     projectsDb.getProjectPath(projectPath),
 };
@@ -88,6 +88,7 @@ function mapProjectRowToApiView(projectRow: ProjectRepositoryRow): ProjectApiVie
 export async function createProject(
   input: CreateProjectInput,
   dependencies: CreateProjectDependencies = defaultDependencies,
+  userId?: number,
 ): Promise<CreateProjectServiceResult> {
   const normalizedPath = normalizeProjectPath(input.projectPath || '');
   if (!normalizedPath) {
@@ -110,7 +111,7 @@ export async function createProject(
   await dependencies.ensureWorkspaceDirectory(resolvedProjectPath);
 
   const normalizedCustomName = resolveDisplayName(input.customName ?? null, resolvedProjectPath);
-  const persistedProject = dependencies.persistProjectPath(resolvedProjectPath, normalizedCustomName);
+  const persistedProject = dependencies.persistProjectPath(resolvedProjectPath, normalizedCustomName, userId);
 
   if (persistedProject.outcome === 'active_conflict') {
     throw new AppError('Project path already exists and is active', {

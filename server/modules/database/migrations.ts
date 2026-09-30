@@ -95,13 +95,14 @@ const migrateLegacyWorkspaceTableIntoProjects = (db: Database): void => {
 
   console.log('Running migration: Migrating workspace_original_paths data into projects');
   db.exec(`
-    INSERT INTO projects (project_id, project_path, custom_project_name, isStarred, isArchived)
+    INSERT INTO projects (project_id, user_id, project_path, custom_project_name, isStarred, isArchived)
     SELECT
       CASE
         WHEN workspace_id IS NULL OR trim(workspace_id) = ''
         THEN ${SQLITE_UUID_SQL}
         ELSE workspace_id
       END,
+      1,
       workspace_path,
       custom_workspace_name,
       COALESCE(isStarred, 0),
@@ -128,6 +129,17 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
   );
 
   if (hasProjectIdPrimaryKey) {
+    // Check if user_id column exists
+    const hasUserIdColumn = columnNames.includes('user_id');
+    if (!hasUserIdColumn) {
+      // Add user_id column to existing projects
+      console.log('Running migration: Adding user_id column to projects table');
+      db.exec('ALTER TABLE projects ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1');
+
+      // Set existing projects to user_id = 1 (first user) - this is safe for legacy data
+      db.exec('UPDATE projects SET user_id = 1 WHERE user_id IS NULL OR user_id = 0');
+    }
+
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'custom_project_name', 'TEXT DEFAULT NULL');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isArchived', 'BOOLEAN DEFAULT 0');
@@ -172,10 +184,12 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
     db.exec(`
       CREATE TABLE projects__new (
         project_id TEXT PRIMARY KEY NOT NULL,
+        user_id INTEGER NOT NULL,
         project_path TEXT NOT NULL UNIQUE,
         custom_project_name TEXT DEFAULT NULL,
         isStarred BOOLEAN DEFAULT 0,
-        isArchived BOOLEAN DEFAULT 0
+        isArchived BOOLEAN DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
     db.exec(`
@@ -211,12 +225,14 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           project_path,
           custom_project_name,
           isStarred,
-          isArchived
+          isArchived,
+          1 AS user_id  -- Default to user 1 for existing projects (legacy data)
         FROM deduped_paths
         WHERE project_path_rank = 1
       )
       INSERT INTO projects__new (
         project_id,
+        user_id,
         project_path,
         custom_project_name,
         isStarred,
@@ -224,6 +240,7 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
       )
       SELECT
         project_id,
+        user_id,
         project_path,
         custom_project_name,
         isStarred,
@@ -311,6 +328,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
     db.exec(`
       CREATE TABLE sessions__new (
         session_id TEXT NOT NULL,
+        user_id INTEGER,
         provider TEXT NOT NULL DEFAULT 'claude',
         custom_name TEXT,
         project_path TEXT,
@@ -321,7 +339,8 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
         PRIMARY KEY (session_id),
         FOREIGN KEY (project_path) REFERENCES projects(project_path)
         ON DELETE SET NULL
-        ON UPDATE CASCADE
+        ON UPDATE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
     db.exec(`
@@ -335,6 +354,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
           ${isArchivedExpression} AS isArchived,
           ${createdAtExpression} AS created_at,
           ${updatedAtExpression} AS updated_at,
+          NULL AS user_id,  -- Legacy sessions may not have user_id, so we set it to NULL
           rowid AS source_rowid
         FROM sessions
         WHERE session_id IS NOT NULL AND trim(session_id) <> ''
@@ -357,6 +377,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
       )
       INSERT INTO sessions__new (
         session_id,
+        user_id,
         provider,
         custom_name,
         project_path,
@@ -367,6 +388,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
       )
       SELECT
         session_id,
+        user_id,
         provider,
         custom_name,
         project_path,
@@ -462,10 +484,14 @@ const ensureProjectsForSessionPaths = (db: Database): void => {
     return;
   }
 
+  // When creating projects from session data, we need to ensure proper schema compliance
+  // For legacy data migration, we should assign to user_id=1 as a safe fallback
+  // This ensures that sessions that don't have corresponding projects get projects with ownership
   db.exec(`
-    INSERT INTO projects (project_id, project_path, custom_project_name, isStarred, isArchived)
+    INSERT INTO projects (project_id, user_id, project_path, custom_project_name, isStarred, isArchived)
     SELECT
       ${SQLITE_UUID_SQL},
+      1,
       project_path,
       NULL,
       0,
@@ -512,7 +538,7 @@ export const runMigrations = (db: Database) => {
     db.exec(SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL);
     addSupersededTranscriptPathColumn(db);
 
-    db.exec(PROJECTS_TABLE_SCHEMA_SQL);
+    // First check if we need to migrate projects table
     rebuildProjectsTableWithPrimaryKeySchema(db);
 
     migrateLegacyWorkspaceTableIntoProjects(db);

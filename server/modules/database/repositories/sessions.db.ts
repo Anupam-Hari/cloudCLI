@@ -18,6 +18,7 @@ type SessionRow = {
   isArchived: number;
   created_at: string;
   updated_at: string;
+  user_id: number | null;
 };
 
 type RecentSessionsPage = {
@@ -87,7 +88,8 @@ export const sessionsDb = {
     customName?: string,
     createdAt?: string,
     updatedAt?: string,
-    jsonlPath?: string | null
+    jsonlPath?: string | null,
+    userId?: number
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
@@ -137,8 +139,8 @@ export const sessionsDb = {
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at, user_id)
+       VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP), ?)
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -160,7 +162,8 @@ export const sessionsDb = {
       jsonlPath ?? null,
       createdAtValue,
       updatedAtValue,
-      updatedAtValue
+      updatedAtValue,
+      userId ?? null
     );
 
     return providerSessionId;
@@ -180,6 +183,7 @@ export const sessionsDb = {
     provider: string,
     projectPath: string,
     customName?: string,
+    userId?: number,
   ): string {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
@@ -187,9 +191,9 @@ export const sessionsDb = {
     projectsDb.createProjectPath(normalizedProjectPath);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, ?, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(sessionId, provider, customName ?? null, normalizedProjectPath);
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at, user_id)
+       VALUES (?, ?, NULL, ?, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)`
+    ).run(sessionId, provider, customName ?? null, normalizedProjectPath, userId ?? null);
 
     return sessionId;
   },
@@ -212,6 +216,7 @@ export const sessionsDb = {
     forkedFromSessionId: string;
     model: string | null;
     effort: string | null;
+    userId?: number;
   }): string {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(input.provider, input.projectPath);
@@ -225,8 +230,8 @@ export const sessionsDb = {
       db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
         .run(input.providerSessionId, input.sessionId);
       db.prepare(
-        `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, model, effort, forked_from_session_id, isArchived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, model, effort, forked_from_session_id, isArchived, created_at, updated_at, user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)`
       ).run(
         input.sessionId,
         input.provider,
@@ -237,6 +242,7 @@ export const sessionsDb = {
         input.model,
         input.effort,
         input.forkedFromSessionId,
+        input.userId ?? null,
       );
     })();
 
@@ -734,33 +740,28 @@ export const sessionsDb = {
       AND (projects.isArchived IS NULL OR projects.isArchived = 0)
     `;
 
-    // This is a simplified approach - in a real implementation, we'd need to
-    // either:
-    // 1. Add a user_id column to sessions table, or
-    // 2. Store user session associations elsewhere
-
-    // For now, we'll still return all sessions but the frontend should filter
-    // based on the authenticated user context
     const rows = db
       .prepare(
         `SELECT sessions.*
          FROM sessions
          LEFT JOIN projects ON projects.project_path = sessions.project_path
          WHERE ${visibilityClause}
+           AND sessions.user_id = ?
          ORDER BY julianday(COALESCE(sessions.updated_at, sessions.created_at)) DESC,
                   sessions.session_id DESC
          LIMIT ? OFFSET ?`
       )
-      .all(limit, offset) as SessionRow[];
+      .all(userId, limit, offset) as SessionRow[];
 
     const countRow = db
       .prepare(
         `SELECT COUNT(*) AS count
          FROM sessions
          LEFT JOIN projects ON projects.project_path = sessions.project_path
-         WHERE ${visibilityClause}`
+         WHERE ${visibilityClause}
+           AND sessions.user_id = ?`
       )
-      .get() as { count: number } | undefined;
+      .get(userId) as { count: number } | undefined;
 
     return {
       sessions: normalizeSessionRows(rows),

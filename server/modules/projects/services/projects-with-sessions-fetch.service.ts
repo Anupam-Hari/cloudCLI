@@ -51,6 +51,7 @@ type GetProjectsWithSessionsOptions = {
   skipSynchronization?: boolean;
   sessionsLimit?: number;
   sessionsOffset?: number;
+  userId?: number;
 };
 
 type SessionPaginationOptions = {
@@ -178,13 +179,13 @@ function broadcastProgress(progress: ProgressUpdate) {
  * Reads all projects from DB and returns normalized session summaries.
  */
 export async function getProjectsWithSessions(
-  options: GetProjectsWithSessionsOptions = {}
+  options: GetProjectsWithSessionsOptions & { userId?: number } = {}
 ): Promise<ProjectListItem[]> {
   if (!options.skipSynchronization) {
     await sessionSynchronizerService.synchronizeSessions();
   }
 
-  const projectRows = projectsDb.getProjectPaths() as Array<{
+  const projectRows = projectsDb.getProjectPaths(options.userId) as Array<{
     project_id: string;
     project_path: string;
     custom_project_name?: string | null;
@@ -246,13 +247,13 @@ export async function getProjectsWithSessions(
  * conversation history in the archive view regardless of each session's flag.
  */
 export async function getArchivedProjectsWithSessions(
-  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization'> = {},
+  options: GetProjectsWithSessionsOptions = {},
 ): Promise<ArchivedProjectListItem[]> {
   if (!options.skipSynchronization) {
     await sessionSynchronizerService.synchronizeSessions();
   }
 
-  const projectRows = projectsDb.getArchivedProjectPaths() as Array<{
+  const projectRows = projectsDb.getArchivedProjectPaths(options.userId) as Array<{
     project_id: string;
     project_path: string;
     custom_project_name?: string | null;

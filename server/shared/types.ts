@@ -886,6 +886,7 @@ export type CreateCredentialResult = {
  */
 export type ProjectRepositoryRow = {
   project_id: string;
+  user_id: number;
   project_path: string;
   custom_project_name: string | null;
   isStarred: number;

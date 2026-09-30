@@ -166,6 +166,7 @@ test('removeWorktree archives an active project linked to the removed path', asy
   const { runner } = createFakeRunner();
   const linkedProject: ProjectRepositoryRow = {
     project_id: 'project-1',
+    user_id: 1,
     project_path: '/home/user/repo-worktrees/feature-login',
     custom_project_name: 'repo · feature/login',
     isStarred: 0,
@@ -190,6 +191,7 @@ test('removeWorktree reports archival failure after successful Git removal', asy
   const { runner } = createFakeRunner();
   const linkedProject: ProjectRepositoryRow = {
     project_id: 'project-1',
+    user_id: 1,
     project_path: '/home/user/repo-worktrees/feature-login',
     custom_project_name: 'feature/login',
     isStarred: 0,

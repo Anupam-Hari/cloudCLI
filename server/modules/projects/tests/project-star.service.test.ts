@@ -7,6 +7,7 @@ import { AppError } from '@/shared/utils.js';
 
 type ProjectRow = {
   project_id: string;
+  user_id: number;
   project_path: string;
   custom_project_name: string | null;
   isStarred: number;
@@ -50,6 +51,7 @@ test('toggleProjectStar flips star state and persists it', () => {
     projectsDb.getProjectById = () =>
       ({
         project_id: 'project-1',
+        user_id: 1,
         project_path: '/workspace/project-1',
         custom_project_name: 'project-1',
         isStarred: 0,

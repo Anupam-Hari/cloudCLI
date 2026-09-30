@@ -16,19 +16,18 @@ function normalizeProjectDisplayName(projectPath: string, customProjectName: str
 }
 
 export const projectsDb = {
-    createProjectPath(projectPath: string, customProjectName: string | null = null): CreateProjectPathResult {
+    createProjectPath(projectPath: string, customProjectName: string | null = null, userId?: number): CreateProjectPathResult {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
         const normalizedProjectName = normalizeProjectDisplayName(normalizedProjectPath, customProjectName);
         const attemptedId = randomUUID();
         const row = db.prepare(`
-        INSERT INTO projects (project_id, project_path, custom_project_name, isArchived)
-            VALUES (?, ?, ?, 0)
+        INSERT INTO projects (project_id, user_id, project_path, custom_project_name, isArchived)
+            VALUES (?, ?, ?, ?, 0)
             ON CONFLICT(project_path) DO UPDATE SET
-            isArchived = 0
-            WHERE projects.isArchived = 1
+            isArchived = CASE WHEN projects.isArchived = 1 THEN 0 ELSE projects.isArchived END
             RETURNING project_id, project_path, custom_project_name, isStarred, isArchived
-        `).get(attemptedId, normalizedProjectPath, normalizedProjectName) as ProjectRepositoryRow | undefined;
+        `).get(attemptedId, userId ?? null, normalizedProjectPath, normalizedProjectName) as ProjectRepositoryRow | undefined;
 
         if (row) {
             return {
@@ -86,10 +85,17 @@ export const projectsDb = {
         return row?.project_path ?? null;
     },
 
-    getProjectPaths(): ProjectRepositoryRow[] {
+    getProjectPaths(userId?: number): ProjectRepositoryRow[] {
         const db = getConnection();
+        if (userId !== undefined) {
+            return db.prepare(`
+                SELECT project_id, user_id, project_path, custom_project_name, isStarred, isArchived
+                FROM projects
+                WHERE isArchived = 0 AND user_id = ?
+            `).all(userId) as ProjectRepositoryRow[];
+        }
         return db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+            SELECT project_id, user_id, project_path, custom_project_name, isStarred, isArchived
             FROM projects
             WHERE isArchived = 0
         `).all() as ProjectRepositoryRow[];
@@ -99,10 +105,17 @@ export const projectsDb = {
      * Archived rows are queried separately so archive-focused UIs can present
      * hidden workspaces without reintroducing them into the active sidebar list.
      */
-    getArchivedProjectPaths(): ProjectRepositoryRow[] {
+    getArchivedProjectPaths(userId?: number): ProjectRepositoryRow[] {
         const db = getConnection();
+        if (userId !== undefined) {
+            return db.prepare(`
+                SELECT project_id, user_id, project_path, custom_project_name, isStarred, isArchived
+                FROM projects
+                WHERE isArchived = 1 AND user_id = ?
+            `).all(userId) as ProjectRepositoryRow[];
+        }
         return db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+            SELECT project_id, user_id, project_path, custom_project_name, isStarred, isArchived
             FROM projects
             WHERE isArchived = 1
         `).all() as ProjectRepositoryRow[];

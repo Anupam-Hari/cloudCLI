@@ -9,6 +9,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
+import { authenticateToken } from '@/modules/auth/auth.middleware.js';
 
 /**
  * How long a posted clone request waits for its progress stream to be opened.
@@ -70,6 +71,7 @@ router.get(
       skipSynchronization,
       sessionsLimit,
       sessionsOffset,
+      userId: (req as any).user?.id,
     });
     res.json(projects);
   }),
@@ -77,8 +79,11 @@ router.get(
 
 router.get(
   '/archived',
-  asyncHandler(async (_req, res) => {
-    const projects = await getArchivedProjectsWithSessions();
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const projects = await getArchivedProjectsWithSessions({
+      userId: (req as any).user?.id,
+    });
     res.json(createApiSuccessResponse({ projects }));
   }),
 );
@@ -96,6 +101,7 @@ router.get(
 
 router.post(
   '/create-project',
+  authenticateToken,
   asyncHandler(async (req, res) => {
     const requestBody = req.body as Record<string, unknown>;
     const projectPath = typeof requestBody.path === 'string' ? requestBody.path : '';
@@ -119,7 +125,7 @@ router.post(
     const projectCreationResult = await createProject({
       projectPath,
       customName,
-    });
+    }, undefined, (req as any).user?.id);
 
     res.json({
       success: true,

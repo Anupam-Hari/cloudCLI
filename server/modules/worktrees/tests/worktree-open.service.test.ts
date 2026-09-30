@@ -31,6 +31,7 @@ function createFakeRunner() {
 function createProjectRow(isArchived = false): ProjectRepositoryRow {
   return {
     project_id: 'project-1',
+    user_id: 1,
     project_path: WORKTREE_PATH,
     custom_project_name: 'repo · feature/login',
     isStarred: 0,

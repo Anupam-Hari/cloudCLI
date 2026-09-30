@@ -90,10 +90,12 @@ CREATE TABLE IF NOT EXISTS notification_channel_endpoints (
 export const PROJECTS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS projects (
     project_id TEXT PRIMARY KEY NOT NULL,
+    user_id INTEGER NOT NULL,
     project_path TEXT NOT NULL UNIQUE,
     custom_project_name TEXT DEFAULT NULL,
     isStarred BOOLEAN DEFAULT 0,
-    isArchived BOOLEAN DEFAULT 0
+    isArchived BOOLEAN DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `;
 

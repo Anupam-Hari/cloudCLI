@@ -6,6 +6,7 @@ import { AppError } from '@/shared/utils.js';
 
 const projectRow = {
   project_id: 'project-1',
+  user_id: 1,
   project_path: '/workspace/my-project',
   custom_project_name: 'my-project',
   isStarred: 0,

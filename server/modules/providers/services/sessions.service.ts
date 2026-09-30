@@ -258,6 +258,7 @@ export const sessionsService = {
     provider: LLMProvider,
     projectPath: string,
     initialMessage: string,
+    userId?: number,
   ): CreateAppSessionResult {
     const normalizedProjectPath = projectPath.trim();
     if (!normalizedProjectPath) {
@@ -269,7 +270,7 @@ export const sessionsService = {
 
     const sessionId = randomUUID();
     const sessionName = buildCloudCliSessionName(initialMessage);
-    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, sessionName);
+    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, sessionName, userId);
 
     return {
       sessionId,
@@ -340,6 +341,7 @@ export const sessionsService = {
       // differently from the conversation it was branched from.
       model: source.model,
       effort: source.effort,
+      userId: source.user_id ?? undefined,
     });
 
     await broadcastSessionUpserted(forkSessionId);
