@@ -8,6 +8,7 @@ import type {
   WorkspacePathValidationResult,
 } from '@/shared/types.js';
 import { AppError, normalizeProjectPath, validateWorkspacePath } from '@/shared/utils.js';
+import { ensureUserWorkspaceExists } from '@/modules/projects/services/user-workspace.service.js';
 
 type CreateProjectInput = {
   projectPath: string;
@@ -98,6 +99,7 @@ export async function createProject(
     });
   }
 
+  // Validate the source path
   const pathValidation = await dependencies.validatePath(normalizedPath);
   if (!pathValidation.valid || !pathValidation.resolvedPath) {
     throw new AppError('Invalid project path', {
@@ -107,7 +109,17 @@ export async function createProject(
     });
   }
 
-  const resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
+  // If user ID is provided, resolve to user workspace path
+  let resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
+  if (userId !== undefined && userId !== null) {
+    // Get user workspace path
+    resolvedProjectPath = await ensureUserWorkspaceExists(userId, normalizedPath);
+  } else {
+    // For backward compatibility, use the source path directly
+    resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
+  }
+
+  // Ensure workspace directory exists
   await dependencies.ensureWorkspaceDirectory(resolvedProjectPath);
 
   const normalizedCustomName = resolveDisplayName(input.customName ?? null, resolvedProjectPath);
