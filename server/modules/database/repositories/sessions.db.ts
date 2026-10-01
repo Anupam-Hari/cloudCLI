@@ -599,17 +599,23 @@ export const sessionsDb = {
     return normalizeSessionRows(rows);
   },
 
-  getSessionsByProjectPath(projectPath: string): SessionRow[] {
+  getSessionsByProjectPath(projectPath: string, userId?: number): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const rows = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
+
+    let query = `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
-      )
-      .all(normalizedProjectPath) as SessionRow[];
+           AND isArchived = 0`;
+
+    const params: any[] = [normalizedProjectPath];
+
+    if (userId !== undefined && userId !== null) {
+      query += ` AND user_id = ?`;
+      params.push(userId);
+    }
+
+    const rows = db.prepare(query).all(...params) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
@@ -618,48 +624,69 @@ export const sessionsDb = {
    * Permanent project deletion must see every session row for the path,
    * including archived ones, so their transcript files can be cleaned up.
    */
-  getSessionsByProjectPathIncludingArchived(projectPath: string): SessionRow[] {
+  getSessionsByProjectPathIncludingArchived(projectPath: string, userId?: number): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const rows = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
+
+    let query = `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE project_path = ?`
-      )
-      .all(normalizedProjectPath) as SessionRow[];
+         WHERE project_path = ?`;
+
+    const params: any[] = [normalizedProjectPath];
+
+    if (userId !== undefined && userId !== null) {
+      query += ` AND user_id = ?`;
+      params.push(userId);
+    }
+
+    const rows = db.prepare(query).all(...params) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number): SessionRow[] {
+  getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number, userId?: number): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const rows = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
+
+    let query = `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0
-         ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
-         LIMIT ? OFFSET ?`
-      )
-      .all(normalizedProjectPath, limit, offset) as SessionRow[];
+           AND isArchived = 0`;
+
+    const params: any[] = [normalizedProjectPath];
+
+    if (userId !== undefined && userId !== null) {
+      query += ` AND user_id = ?`;
+      params.push(userId);
+    }
+
+    query += ` ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
+         LIMIT ? OFFSET ?`;
+
+    params.push(limit, offset);
+
+    const rows = db.prepare(query).all(...params) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  countSessionsByProjectPath(projectPath: string): number {
+  countSessionsByProjectPath(projectPath: string, userId?: number): number {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const row = db
-      .prepare(
-        `SELECT COUNT(*) AS count
+
+    let query = `SELECT COUNT(*) AS count
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
-      )
-      .get(normalizedProjectPath) as { count: number } | undefined;
+           AND isArchived = 0`;
+
+    const params: any[] = [normalizedProjectPath];
+
+    if (userId !== undefined && userId !== null) {
+      query += ` AND user_id = ?`;
+      params.push(userId);
+    }
+
+    const row = db.prepare(query).get(...params) as { count: number } | undefined;
 
     return Number(row?.count ?? 0);
   },

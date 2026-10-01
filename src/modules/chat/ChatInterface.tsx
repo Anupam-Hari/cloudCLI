@@ -457,6 +457,18 @@ function ChatInterface({
       <div className="flex h-full min-h-0 flex-col">
         <MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}>
           <TranscriptSessionContext.Provider value={transcriptSessionValue}>
+            {console.log('CHAT_INTERFACE_RENDERING_MESSAGES', {
+              activeSessionId: selectedSession?.id,
+              chatMessagesLength: chatMessages.length,
+              isLoadingSessionMessages,
+              hasMoreMessages,
+              totalMessages,
+              visibleMessageCount,
+              allMessagesLoaded,
+              isLoadingAllMessages,
+              loadAllJustFinished,
+              showLoadAllOverlay
+            })}
             <ChatMessagesPane
               scrollContainerRef={scrollContainerRef}
               // Not redundant with the `scroll` listener. A first page is 20 rows,

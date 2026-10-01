@@ -5,11 +5,11 @@ import { useTranslation } from 'react-i18next';
 
 import { Tooltip, PillBar, Pill } from '@/shared/ui';
 import type { AppTab } from '@/shared/types';
-import { usePlugins,PluginIcon } from '@/modules/plugins';
+import { usePlugins, PluginIcon } from '@/modules/plugins';
 
 type WorkspaceTabsProps = {
   activeTab: AppTab;
-  setActiveTab: Dispatch<SetStateAction<AppTab>>;
+  setActiveTab: (tab: AppTab) => void;
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
 };

@@ -696,7 +696,23 @@ export function useChatSessionState({
   // after every load. Both are always current when the effect does run,
   // because React recreates the closure on each render.
   useEffect(() => {
+    console.log('USE_CHAT_SESSION_STATE_EFFECT_START', {
+      selectedSessionId: selectedSession?.id,
+      selectedProjectId: selectedProject?.projectId,
+      isActive,
+      currentSessionId,
+      activeSessionIdRef: activeSessionIdRef.current,
+      lastLoadedSessionKeyRef: lastLoadedSessionKeyRef.current,
+      sessionKey: selectedSession ? `${selectedSession.id}:${selectedProject?.projectId}` : null
+    });
+
     if (!selectedSession || !selectedProject) {
+      console.log('USE_CHAT_SESSION_STATE_EFFECT_NO_SESSION_OR_PROJECT', {
+        selectedSessionId: selectedSession?.id,
+        selectedProjectId: selectedProject?.projectId,
+        currentSessionId,
+        isActive
+      });
       // A freshly created session can be mid-run before the router has a
       // canonical selectedSession (the URL effect synthesizes one on the
       // next render). Keep the active view intact instead of wiping it — but
@@ -705,9 +721,17 @@ export function useChatSessionState({
       // selection there is a real navigation away.
       const activity = currentSessionId ? processingSessionsRef.current?.get(currentSessionId) : undefined;
       if (activity && !activity.background) {
+        console.log('USE_CHAT_SESSION_STATE_EFFECT_RETURNING_EARLY_ACTIVE_SESSION', {
+          currentSessionId,
+          activity: activity?.background
+        });
         return;
       }
 
+      console.log('USE_CHAT_SESSION_STATE_EFFECT_RESETTING_STATE', {
+        currentSessionId,
+        selectedSessionId: selectedSession?.id
+      });
       resetStreamingState();
       setCurrentSessionId(null);
       messagesOffsetRef.current = 0;
@@ -718,7 +742,18 @@ export function useChatSessionState({
       return;
     }
 
+    console.log('USE_CHAT_SESSION_STATE_EFFECT_PROCEEDING_WITH_LOAD', {
+      selectedSessionId: selectedSession.id,
+      selectedProjectId: selectedProject.projectId,
+      isActive,
+      currentSessionId
+    });
+
     if (!isActive) {
+      console.log('USE_CHAT_SESSION_STATE_EFFECT_INACTIVE', {
+        selectedSessionId: selectedSession.id,
+        isActive
+      });
       setIsLoadingSessionMessages(false);
       return;
     }
@@ -731,17 +766,42 @@ export function useChatSessionState({
       lastLoadedSessionKeyRef.current === sessionKey
       && Boolean(existingSlot?.fetchedAt);
 
+    console.log('USE_CHAT_SESSION_STATE_EFFECT_HYDRATION_CHECK', {
+      selectedSessionId,
+      sessionKey,
+      lastLoadedSessionKeyRef_current: lastLoadedSessionKeyRef.current,
+      existingSlot_fetchedAt: existingSlot?.fetchedAt,
+      isCurrentHydratedSession
+    });
+
     // Returning from another tab must not reset pagination or scroll. Refresh
     // a stale hydrated session through the bounded tail path instead.
     if (isCurrentHydratedSession) {
+      console.log('USE_CHAT_SESSION_STATE_EFFECT_HYDRATED_SESSION', {
+        selectedSessionId,
+        isStale: sessionStore.isStale(selectedSessionId)
+      });
       if (sessionStore.isStale(selectedSessionId)) {
+        console.log('USE_CHAT_SESSION_STATE_EFFECT_REQUESTING_LATEST', {
+          selectedSessionId
+        });
         void requestLatestMessages(selectedSessionId);
       }
       return;
     }
 
+    console.log('USE_CHAT_SESSION_STATE_EFFECT_LOADING_SESSION', {
+      selectedSessionId,
+      sessionKey,
+      existingSlot_fetchedAt: existingSlot?.fetchedAt
+    });
+
     const sessionChanged = currentSessionId !== null && currentSessionId !== selectedSessionId;
     if (sessionChanged) {
+      console.log('USE_CHAT_SESSION_STATE_EFFECT_SESSION_CHANGED', {
+        currentSessionId,
+        selectedSessionId
+      });
       resetStreamingState();
     }
 
@@ -767,6 +827,13 @@ export function useChatSessionState({
 
     lastLoadedSessionKeyRef.current = sessionKey;
 
+    console.log('USE_CHAT_SESSION_STATE_EFFECT_CALLING_FETCH_FROM_SERVER', {
+      selectedSessionId,
+      sessionKey,
+      limit: SESSION_MESSAGES_PAGE_SIZE,
+      offset: 0
+    });
+
     // Fetch from server → store updates → chatMessages re-derives automatically
     setIsLoadingSessionMessages(true);
     sessionStore.fetchFromServer(selectedSessionId, {
@@ -777,6 +844,14 @@ export function useChatSessionState({
         && activeSessionIdRef.current === selectedSessionId
       ),
     }).then(slot => {
+      console.log('USE_CHAT_SESSION_STATE_EFFECT_FETCH_FROM_SERVER_COMPLETE', {
+        selectedSessionId,
+        slotExists: !!slot,
+        slotTotal: slot?.total,
+        slotHasMore: slot?.hasMore,
+        slotFetchedAt: slot?.fetchedAt,
+        slotServerMessages: slot?.serverMessages?.length
+      });
       if (slot) {
         setHasMoreMessages(slot.hasMore);
         setTotalMessages(slot.total);
@@ -786,10 +861,15 @@ export function useChatSessionState({
         }
       }
       setIsLoadingSessionMessages(false);
-    }).catch(() => {
+    }).catch(error => {
+      console.error('USE_CHAT_SESSION_STATE_EFFECT_FETCH_FROM_SERVER_ERROR', {
+        selectedSessionId,
+        error: error.message || error
+      });
       setIsLoadingSessionMessages(false);
     });
   }, [
+    // existing dependencies unchanged
     isActive,
     resetStreamingState,
     requestLatestMessages,

@@ -129,8 +129,8 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
   };
 }
 
-function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessionsPageResult {
-  const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
+function readProjectSessionsIncludingArchived(projectPath: string, userId?: number): ProjectSessionsPageResult {
+  const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath, userId) as SessionRepositoryRow[];
 
   return {
     sessions: rows.map(mapSessionRowToSummary),
@@ -145,14 +145,16 @@ function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessi
 function readProjectSessionsPageByPath(
   projectPath: string,
   options: SessionPaginationOptions = {},
+  userId?: number,
 ): ProjectSessionsPageResult {
   const pagination = normalizeSessionPagination(options);
   const rows = sessionsDb.getSessionsByProjectPathPage(
     projectPath,
     pagination.limit,
     pagination.offset,
+    userId,
   ) as SessionRepositoryRow[];
-  const total = sessionsDb.countSessionsByProjectPath(projectPath);
+  const total = sessionsDb.countSessionsByProjectPath(projectPath, userId);
 
   return {
     sessions: rows.map(mapSessionRowToSummary),
@@ -270,7 +272,7 @@ export async function getProjectsWithSessions(
     const sessionsPage = readProjectSessionsPageByPath(projectPath, {
       limit: options.sessionsLimit,
       offset: options.sessionsOffset,
-    });
+    }, options.userId);
 
     projects.push({
       projectId,
@@ -327,7 +329,7 @@ export async function getArchivedProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(projectPath) || projectPath, projectPath);
 
-    const sessionsPage = readProjectSessionsIncludingArchived(projectPath);
+    const sessionsPage = readProjectSessionsIncludingArchived(projectPath, options.userId);
 
     archivedProjects.push({
       projectId: row.project_id,

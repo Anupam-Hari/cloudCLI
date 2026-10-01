@@ -4,7 +4,6 @@ import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSetting
 import AgentCategoryContentSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection';
 import AgentCategoryTabsSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryTabsSection';
 import AgentSelectorSection from '@/modules/settings/tabs/agents-settings/sections/AgentSelectorSection';
-import { useAuth } from '@/modules/auth';
 
 type ProviderAuthStatusByProvider = Record<AgentProvider, ProviderAuthStatus>;
 
@@ -34,17 +33,11 @@ export default function AgentsSettingsTab({
 }: AgentsSettingsTabProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
-  const { user } = useAuth();
-  const isAdmin = user?.isAdmin === true;
-  const visibleCategories = useMemo<AgentCategory[]>(() => {
-      if (!isAdmin) {
-        return ['account', 'skills'];
-      }
-    
-      return selectedAgent === 'opencode'
-        ? ['account', 'permissions', 'mcp']
-        : ['account', 'permissions', 'mcp', 'skills'];
-    }, [isAdmin, selectedAgent]);
+  const visibleCategories = useMemo<AgentCategory[]>(() => (
+    selectedAgent === 'opencode'
+      ? ['account', 'permissions', 'mcp']
+      : ['account', 'permissions', 'mcp', 'skills']
+  ), [selectedAgent]);
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
     return ['claude'];

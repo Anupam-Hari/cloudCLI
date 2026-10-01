@@ -4,7 +4,7 @@
  * Holds per-session state in a Map keyed by sessionId.
  * Session switch = change activeSessionId pointer. No clearing. Old data stays.
  * WebSocket handler = store.appendRealtime(msg.sessionId, msg). One line.
- * No localStorage for messages. Backend JSONL is the source of truth.
+ * localStorage is used for UI state persistence between page refreshes.
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -21,6 +21,12 @@ import {
   SESSION_MESSAGES_PAGE_SIZE,
 } from '@/modules/chat/utils/sessionMessagePagination';
 import type { SessionMessagesRequestOptions } from '@/modules/chat/utils/sessionMessagePagination';
+import {
+  hydrateSessionStoreFromStorage,
+  saveSessionToStorage,
+  removeSessionFromStorage,
+  getScopedStorageKey,
+} from '@/modules/chat/utils/sessionStorage';
 
 // ─── NormalizedMessage (mirrors server/adapters/types.js) ────────────────────
 
@@ -549,7 +555,12 @@ const MAX_REALTIME_MESSAGES = 500;
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useSessionStore() {
-  const storeRef = useRef(new Map<string, SessionSlot>());
+  // Initialize store with data from localStorage
+  const initialStore = useMemo(() => {
+    return hydrateSessionStoreFromStorage();
+  }, []);
+
+  const storeRef = useRef(initialStore);
   const activeSessionIdRef = useRef<string | null>(null);
   // Bump to force re-render — only when the active session's data changes.
   // Session ids are stable for the whole conversation lifetime (the backend
@@ -588,20 +599,60 @@ export function useSessionStore() {
       canRequest?: CanRequestHistory;
     } = {},
   ) => {
+    console.log('SESSION_STORE_FETCH_FROM_SERVER_START', {
+      sessionId,
+      limit: opts.limit,
+      offset: opts.offset,
+      requestOptions: JSON.stringify(opts)
+    });
+
     const slot = getSlot(sessionId);
+    console.log('SESSION_STORE_FETCH_FROM_SERVER_SLOT_BEFORE', {
+      sessionId,
+      slotServerMessages: slot.serverMessages?.length,
+      slotFetchedAt: slot.fetchedAt,
+      slotStatus: slot.status
+    });
+
     slot.status = 'loading';
     notify(sessionId);
+    console.log('SESSION_STORE_FETCH_FROM_SERVER_NOTIFY_STARTED', {
+      sessionId,
+      slotStatus: slot.status
+    });
 
     return enqueueHistoryMutation(slot, async () => {
       const { canRequest = () => true, ...requestOptions } = opts;
+      console.log('SESSION_STORE_FETCH_FROM_SERVER_CAN_REQUEST_CHECK', {
+        sessionId,
+        canRequest: typeof canRequest
+      });
+
       if (!canRequest()) {
+        console.log('SESSION_STORE_FETCH_FROM_SERVER_CAN_REQUEST_DENIED', {
+          sessionId
+        });
         slot.status = 'idle';
         notify(sessionId);
         return null;
       }
 
       try {
+        console.log('SESSION_STORE_FETCH_FROM_SERVER_API_CALL_START', {
+          sessionId,
+          requestOptions
+        });
+
         const data = await requestSessionHistoryPage(sessionId, requestOptions);
+        console.log('SESSION_STORE_FETCH_FROM_SERVER_API_RESPONSE', {
+          sessionId,
+          messagesCount: data.messages?.length,
+          total: data.total,
+          hasMore: data.hasMore,
+          tokenUsagePresent: data.tokenUsage !== undefined,
+          responseStatus: data?.status || 'unknown'
+        });
+
         slot.serverMessages = data.messages;
         slot.total = data.total;
         slot.hasMore = data.hasMore;
@@ -617,10 +668,35 @@ export function useSessionStore() {
           slot.tokenUsage = data.tokenUsage;
         }
 
+        console.log('SESSION_STORE_FETCH_FROM_SERVER_SLOT_AFTER_UPDATE', {
+          sessionId,
+          slotServerMessages: slot.serverMessages?.length,
+          slotTotal: slot.total,
+          slotFetchedAt: slot.fetchedAt,
+          slotStatus: slot.status,
+          slotHasMore: slot.hasMore
+        });
+
+        console.log('SESSION_STORE_FETCH_FROM_SERVER_BEFORE_NOTIFY', {
+          sessionId,
+          slotStatus: slot.status
+        });
+
         notify(sessionId);
+        console.log('SESSION_STORE_FETCH_FROM_SERVER_NOTIFY_COMPLETED', {
+          sessionId,
+          slotStatus: slot.status
+        });
+
+        // Persist to localStorage
+        saveSessionToStorage(sessionId, slot);
         return slot;
       } catch (error) {
-        console.error(`[SessionStore] fetch failed for ${sessionId}:`, error);
+        console.error('SESSION_STORE_FETCH_FROM_SERVER_ERROR', {
+          sessionId,
+          error: error.message || error,
+          errorStack: error.stack
+        });
         slot.status = 'error';
         notify(sessionId);
         return slot;
@@ -688,6 +764,8 @@ export function useSessionStore() {
           }
           recomputeMergedIfNeeded(slot);
           changed = true;
+          // Persist to localStorage
+          saveSessionToStorage(sessionId, slot);
           break;
         }
 
@@ -746,6 +824,8 @@ export function useSessionStore() {
     slot.offset = slot.serverMessages.length;
     recomputeMergedIfNeeded(slot);
     notify(sessionId);
+    // Persist to localStorage
+    saveSessionToStorage(sessionId, slot);
   }, [notify]);
 
   const appendRealtime = useCallback((sessionId: string, msg: NormalizedMessage) => {
@@ -761,6 +841,8 @@ export function useSessionStore() {
     slot.realtimeMessages = updated;
     recomputeMergedIfNeeded(slot);
     notify(sessionId);
+    // Persist to localStorage
+    saveSessionToStorage(sessionId, slot);
   }, [getSlot, notify]);
 
   /**
@@ -827,6 +909,8 @@ export function useSessionStore() {
     }
     recomputeMergedIfNeeded(slot);
     notify(sessionId);
+    // Persist to localStorage
+    saveSessionToStorage(sessionId, slot);
   }, [getSlot, notify]);
 
   /**
@@ -849,6 +933,8 @@ export function useSessionStore() {
       };
       recomputeMergedIfNeeded(slot);
       notify(sessionId);
+      // Persist to localStorage
+      saveSessionToStorage(sessionId, slot);
     }
   }, [notify]);
 
@@ -866,6 +952,14 @@ export function useSessionStore() {
     return storeRef.current.get(sessionId);
   }, []);
 
+  // Add a method to remove session data from localStorage when a session is deleted
+  const removeSession = useCallback((sessionId: string) => {
+    // Remove from in-memory store
+    storeRef.current.delete(sessionId);
+    // Remove from localStorage
+    removeSessionFromStorage(sessionId);
+  }, []);
+
   return useMemo(() => ({
     fetchFromServer,
     fetchMore,
@@ -878,10 +972,11 @@ export function useSessionStore() {
     finalizeStreaming,
     getMessages,
     getSessionSlot,
+    removeSession, // Export the removal function
   }), [
     fetchFromServer, fetchMore, appendRealtime, truncateAt, refreshLatestFromServer,
     setActiveSession, isStale, updateStreaming, finalizeStreaming,
-    getMessages, getSessionSlot,
+    getMessages, getSessionSlot, removeSession,
   ]);
 }
 

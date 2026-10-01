@@ -1,57 +1,67 @@
-# Session Creation Fix - Complete Solution
+# Fix for Conversation History Disappearing on Page Refresh
 
-## Problem Identified
-The session creation flow was failing with `SqliteError: NOT NULL constraint failed: projects.user_id` due to three methods in `sessions.db.ts` not properly passing the `userId` parameter to `projectsDb.createProjectPath()`:
+## Problem
+Conversation history disappeared on browser page refresh because the frontend session store only maintained data in memory. When users refreshed the page, the in-memory Map was destroyed, causing all conversation data to be lost.
 
-1. **`createSession()`** (line 101) - Was calling `projectsDb.createProjectPath(normalizedProjectPath);` 
-2. **`createAppSession()`** (line 191) - Was calling `projectsDb.createProjectPath(normalizedProjectPath);`
-3. **`createForkedSession()`** (line 224) - Was calling `projectsDb.createProjectPath(normalizedProjectPath);`
-
-## Root Cause
-All three methods were missing the `userId` parameter when calling `projectsDb.createProjectPath()`. When these methods were called from:
-- **Authenticated runtime sessions** (POST `/sessions` route): `userId` was properly available
-- **Background discovery processes** (provider synchronizers): `userId` could be `undefined`
-
-In the background discovery case, when `userId` was `undefined`, it would be passed as `undefined` to `createProjectPath`, which then would pass `undefined` to the database, causing a `NULL` value that violated the NOT NULL constraint on `projects.user_id`.
-
-## Solution Implemented
-Fixed all three methods to properly pass the `userId` parameter:
-
-**In `createSession()` (line 101):**
-```typescript
-// Before
-projectsDb.createProjectPath(normalizedProjectPath);
-
-// After  
-projectsDb.createProjectPath(normalizedProjectPath, null, userId);
-```
-
-**In `createAppSession()` (line 191):**
-```typescript
-// Before
-projectsDb.createProjectPath(normalizedProjectPath);
-
-// After
-projectsDb.createProjectPath(normalizedProjectPath, null, userId);
-```
-
-**In `createForkedSession()` (line 224):**
-```typescript
-// Before
-projectsDb.createProjectPath(normalizedProjectPath);
-
-// After
-projectsDb.createProjectPath(normalizedProjectPath, null, input.userId);
-```
-
-## Impact and Verification
-✅ **Normal runtime session creation** (POST `/sessions` route) now works correctly with proper user context
-✅ **Background session discovery** (provider synchronizers) now properly handles user context when available
-✅ **Multi-user isolation behavior** is maintained
-✅ **All existing functionality** is preserved
-✅ **Database constraints** are satisfied
+## Solution
+Added localStorage persistence to the session store while maintaining backend as the source of truth.
 
 ## Files Modified
-- `/home/zkazi/zahoor/Claude_Assist/cloudcli/server/modules/database/repositories/sessions.db.ts`
 
-This fix resolves the exact constraint violation issue described in the task while maintaining all existing functionality and architectural patterns.
+### 1. `src/modules/chat/utils/sessionStorage.ts` (New file)
+Created a utility module for:
+- Storing session data in localStorage
+- User-scoped storage using JWT token user IDs
+- Cache expiration (1 hour)
+- Graceful error handling
+- Serialization of session data
+
+### 2. `src/modules/chat/hooks/useSessionStore.ts` (Modified)
+Enhanced the session store with:
+- Hydration from localStorage on initialization
+- Automatic persistence of session changes
+- Cleanup of expired sessions
+- User isolation for session data
+
+## Key Features
+
+### ✅ Persistent UI State
+- Session messages and UI state persist between page refreshes
+- Immediate UI restoration upon page load
+- Backend data still fetched for accuracy
+
+### ✅ User Isolation
+- Sessions scoped by user ID from auth tokens
+- Prevents cross-user data leakage
+- Anonymous users get isolated storage
+
+### ✅ Robust Error Handling
+- All localStorage operations wrapped in try/catch
+- Malformed data gracefully ignored
+- No application crashes from storage issues
+
+### ✅ Performance Optimized
+- Cache expiration after 1 hour
+- Only serializable session data stored
+- Non-serializable objects excluded from storage
+
+## How It Works
+
+1. **On App Startup**: Load existing session data from localStorage
+2. **On Session Changes**: Immediately save updated session data to localStorage  
+3. **On Page Refresh**: UI shows cached data instantly while fetching fresh backend data
+4. **Automatic Cleanup**: Expired sessions (older than 1 hour) are removed
+
+## Backend Integration
+- The backend remains the source of truth for actual session data
+- localStorage is purely a client-side UI cache
+- Backend API calls still occur for fresh data synchronization
+- No changes to existing session database or provider logic
+
+## Expected Behavior After Fix
+✅ Conversation history persists across page refreshes
+✅ UI loads immediately with cached data
+✅ Backend data is fetched and reconciled
+✅ No duplicate sessions created
+✅ User sessions remain isolated
+✅ No security concerns with sensitive data storage

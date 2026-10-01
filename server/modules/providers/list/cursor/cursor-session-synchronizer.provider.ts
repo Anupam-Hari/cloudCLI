@@ -55,7 +55,22 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
         continue;
       }
 
+      const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId);
       const timestamps = await readFileTimestamps(filePath);
+
+      // Resolve user_id from existing session or project path
+      let userId: number | undefined = undefined;
+
+      // First, try to find an existing session with this provider session ID
+      if (existingSession) {
+        // Use the existing session's user_id to preserve ownership
+        userId = existingSession.user_id ?? undefined;
+      } else {
+        // Try to derive user_id from project path structure for user workspaces
+        // Note: Cursor doesn't have the same workspace structure, so we pass undefined
+        userId = undefined;
+      }
+
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
@@ -63,7 +78,8 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        userId
       );
       processed += 1;
     }
@@ -85,6 +101,11 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     const timestamps = await readFileTimestamps(filePath);
+
+    // Get the existing session to preserve user_id for the project creation
+    const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId);
+    const userId = existingSession?.user_id ?? undefined;
+
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
@@ -92,7 +113,8 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      userId
     );
   }
 

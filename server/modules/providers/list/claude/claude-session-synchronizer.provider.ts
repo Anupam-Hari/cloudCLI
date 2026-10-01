@@ -43,6 +43,33 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
   }
 
   /**
+   * Derives user_id from project path structure for user workspaces.
+   *
+   * User workspace paths follow the pattern:
+   * ~/.claude/projects/-workspace-Claude-Assist-user-workspaces/<user_id>/<repo>
+   *
+   * For example:
+   * ~/.claude/projects/-workspace-Claude-Assist-user-workspaces/2/fortiaiops
+   * Would return user_id = 2
+   */
+  private deriveUserIdFromProjectPath(projectPath: string): number | undefined {
+    // Match user workspace pattern: .../user-workspaces/<user_id>/<repo>
+    const userWorkspaceRegex = /user-workspaces\/(\d+)\//;
+    const match = projectPath.match(userWorkspaceRegex);
+
+    if (match && match[1]) {
+      const userId = parseInt(match[1], 10);
+      if (!isNaN(userId) && userId > 0) {
+        return userId;
+      }
+    }
+
+    // For admin/source projects that are not under user-workspaces,
+    // we don't assign a specific user_id to avoid incorrect ownership
+    return undefined;
+  }
+
+  /**
    * Scans ~/.claude/projects and upserts discovered sessions into DB.
    */
   async synchronize(since?: Date): Promise<number> {
@@ -65,6 +92,20 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       }
 
       const timestamps = await readFileTimestamps(filePath);
+
+      // Resolve user_id from existing session or project path
+      let userId: number | undefined = undefined;
+
+      // First, try to find an existing session with this provider session ID
+      const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId);
+      if (existingSession) {
+        // Use the existing session's user_id to preserve ownership
+        userId = existingSession.user_id ?? undefined;
+      } else {
+        // Try to derive user_id from project path structure for user workspaces
+        userId = this.deriveUserIdFromProjectPath(parsed.projectPath);
+      }
+
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
@@ -72,7 +113,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        userId
       );
       processed += 1;
     }
@@ -98,6 +140,11 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     const timestamps = await readFileTimestamps(filePath);
+
+    // Get the existing session to preserve user_id for the project creation
+    const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId);
+    const userId = existingSession?.user_id ?? undefined;
+
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
@@ -105,7 +152,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      userId
     );
   }
 

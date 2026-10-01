@@ -53,6 +53,9 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       }
 
       const timestamps = await readFileTimestamps(filePath);
+
+      // Get the existing session to preserve user_id for the project creation
+      const userId = existingSession?.user_id ?? undefined;
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
@@ -60,7 +63,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        userId
       );
       processed += 1;
     }
@@ -83,6 +87,12 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     const timestamps = await readFileTimestamps(filePath);
+
+    // Get the existing session to preserve user_id for the project creation
+    const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId)
+      ?? sessionsDb.getSessionById(parsed.sessionId);
+    const userId = existingSession?.user_id ?? undefined;
+
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
@@ -90,7 +100,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      userId
     );
   }
 
