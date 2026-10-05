@@ -143,7 +143,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     // Get the existing session to preserve user_id for the project creation
     const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId);
-    const userId = existingSession?.user_id ?? undefined;
+    const userId = existingSession?.user_id ?? this.deriveUserIdFromProjectPath(parsed.projectPath);
 
     return sessionsDb.createSession(
       parsed.sessionId,

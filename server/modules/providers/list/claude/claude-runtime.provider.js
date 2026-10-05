@@ -39,6 +39,28 @@ import {
 import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
+/**
+ * Derives the Claude transcript path from cwd and provider session ID.
+ *
+ * @param {string} cwd - The working directory
+ * @param {string} providerSessionId - The Claude provider session ID
+ * @returns {string|null} The transcript file path or null if invalid
+ */
+function getClaudeTranscriptPath(cwd, providerSessionId) {
+  if (!cwd || !providerSessionId) {
+    return null;
+  }
+
+  const projectDirectory = path.join(
+    os.homedir(),
+    '.claude',
+    'projects',
+    cwd.replace(/[\/_]/g, '-'),
+  );
+
+  return path.join(projectDirectory, `${providerSessionId}.jsonl`);
+}
+
 const activeSessions = new Map();
 // Outstanding background tasks per live session, keyed like activeSessions. An
 // entry lives exactly as long as the map entry it shadows: cleared when the
@@ -1112,9 +1134,16 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         capturedSessionId = message.session_id;
         addSession(sessionKey(), queryInstance, ws, releasePromptStream);
 
+        // Derive the transcript path for persistence
+        const transcriptPath = getClaudeTranscriptPath(options.cwd, capturedSessionId);
+
+        // Debug logging
+        console.log('[CLAUDERUNTIME] Session ID captured:', capturedSessionId);
+        console.log('[CLAUDERUNTIME] Transcript path derived:', transcriptPath);
+
         // Set session ID on writer
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
-          ws.setSessionId(capturedSessionId);
+          ws.setSessionId(capturedSessionId, transcriptPath);
         }
 
         // Send session-created event only once for sessions with nothing to resume

@@ -258,7 +258,7 @@ export const sessionsDb = {
    * are adopted and the duplicate row is removed. Runs in a transaction so
    * the sidebar can never observe both rows at once.
    */
-  assignProviderSessionId(sessionId: string, providerSessionId: string): void {
+  assignProviderSessionId(sessionId: string, providerSessionId: string, jsonlPath?: string): void {
     const db = getConnection();
 
     const merge = db.transaction(() => {
@@ -280,16 +280,17 @@ export const sessionsDb = {
              custom_name = COALESCE(custom_name, ?),
              updated_at = CURRENT_TIMESTAMP
            WHERE session_id = ?`
-        ).run(providerSessionId, duplicate.jsonl_path, duplicate.custom_name, sessionId);
+        ).run(providerSessionId, jsonlPath ?? duplicate.jsonl_path, duplicate.custom_name, sessionId);
         return;
       }
 
       db.prepare(
         `UPDATE sessions SET
            provider_session_id = ?,
+           jsonl_path = ?,
            updated_at = CURRENT_TIMESTAMP
          WHERE session_id = ?`
-      ).run(providerSessionId, sessionId);
+      ).run(providerSessionId, jsonlPath, sessionId);
     });
 
     merge();
